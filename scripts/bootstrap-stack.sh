@@ -141,9 +141,14 @@ fi
 if [ -f "$BASE_DIR/NovA-clean-my-ai-harness/clean-my-ai-harness-claude.zip" ]; then
   log "Installing clean-my-ai-harness skill ..."
   rm -rf "$HOME/.claude/skills/clean-my-ai-harness"
-  mkdir -p /tmp/cmah-bootstrap
-  unzip -oq "$BASE_DIR/NovA-clean-my-ai-harness/clean-my-ai-harness-claude.zip" -d /tmp/cmah-bootstrap
-  cp -r /tmp/cmah-bootstrap/claude-edition "$HOME/.claude/skills/clean-my-ai-harness"
+  # /tmp isn't writable on Termux (Android has no shared /tmp); use a
+  # per-run tmp dir under $TMPDIR (falls back to $PREFIX/tmp, then $HOME/.tmp
+  # for a plain Linux box where neither is set).
+  CMAH_TMP="$(mktemp -d "${TMPDIR:-${PREFIX:-$HOME}/tmp}/cmah-bootstrap.XXXXXX" 2>/dev/null || mktemp -d)"
+  unzip -oq "$BASE_DIR/NovA-clean-my-ai-harness/clean-my-ai-harness-claude.zip" -d "$CMAH_TMP"
+  # Zip extracts flat (SKILL.md, scripts/, references/ at top level) — no
+  # claude-edition/ subfolder despite the old assumption here.
+  cp -r "$CMAH_TMP" "$HOME/.claude/skills/clean-my-ai-harness"
 else
   skip "NovA-clean-my-ai-harness"
 fi

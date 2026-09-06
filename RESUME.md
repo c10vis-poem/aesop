@@ -1,116 +1,87 @@
 # Æsop-Xi — Session Resume / Handoff
 
 Full rewrite, not an append — see `CLAUDE.md` for why. Owner: c10vis-poem
-(nav@clovispoem.com). For anything not addressed this session, see `unresolved.md`
-(repo-local) and `~/novae-xorpus/unresolved.md` (the real, durable, cross-repo
-backlog).
+(nav@clovispoem.com). For anything not addressed this session, see
+`~/novae-xorpus/unresolved.md` (the real, durable, cross-repo backlog — items
+14-18 are new from this session).
 
 ## What this is
 
-Unchanged from last session — see prior sections of this repo's docs
-(`CLAUDE.md`, `ARCHITECTURE.md`) for the project shape. This session was almost
-entirely infrastructure: making aesop-xi actually function as the orchestration
-layer it was designed to be, for cloud sessions specifically.
+Unchanged from last session — see `CLAUDE.md` / `ARCHITECTURE.md` for project
+shape. This session (2026-09-06) was device-cleanup + making the local (Termux)
+bootstrap actually match the cloud one, plus installing the Happy Ending
+session-close plugin.
 
 ## Repo state (2026-09-06)
 
-**aesop-xi is now the real orchestration layer, not just a name for one.**
-`main` has, in order built tonight:
+1. **`scripts/bootstrap-stack.sh` now works on this phone, not just in the
+   cloud.** `session-start.sh`'s `CLAUDE_CODE_REMOTE=true` gate was dropped
+   (local sessions get the identical bootstrap now, per operator direction) —
+   but it still only fires when a session's project root is this repo; running
+   it manually (`bash scripts/bootstrap-stack.sh`) works from anywhere.
+2. **The real bug behind every Android failure**: these packages target glibc
+   Linux; Termux is Android/bionic. Fixed by routing through `proot-distro
+   login debian` (already installed) where a glibc target is genuinely needed,
+   and using Termux's own native builds where those already exist and are
+   better. Full writeup in `CLAUDE.md`'s new "Termux/Android platform gap"
+   section — read that before re-debugging any of this from scratch.
+3. **Fixed and verified working this session**: `clean-my-ai-harness` skill
+   install (two bugs: `/tmp` not writable + wrong assumed zip layout),
+   `code-review-graph` (built + registered for 3 repos via proot-Debian; its
+   MCP server config repointed at the working venv in both `~/.claude.json`
+   and `NovA-terrestrial-brain/.mcp.json`), `notebooklm-py`/Playwright installs
+   cleanly via proot-Debian, terrestrial-brain's local Postgres+pgvector+MCP
+   server (native Termux Postgres 18, pgvector built from source, native
+   `deno` — responds correctly on :8000).
+4. **Still broken, not yet fixed** (see `unresolved.md` #14-15): OmniRoute's
+   dev server (needs Node 22+ inside proot-Debian, undici incompatibility with
+   proot's default Node 20); terrestrial-brain's Obsidian-plugin build
+   (`tsc: not found`, not root-caused).
+5. **Happy Ending plugin installed** (session-close/handoff skill,
+   skills-for-ai.com, single-seat license) — registered by hand-editing Claude
+   Code's own config JSON since the interactive `/plugin marketplace add` flow
+   is broken client-side on this build. Customized to explicitly check for
+   `RESUME.md` (full-replace) / `unresolved.md` (durable, add-only) /
+   `CLAUDE.md` (normal patch) in whatever repo it runs in — not just aesop-xi.
+   Repo cleaned up: original vendor download moved out of shared Android
+   Downloads into `~/downloads/happy-ending-1.0.0-vendor-original/`;
+   `.agents/skills/happy-ending/` is now a symlink to the maintained
+   `plugins/happy-ending/skills/happy-ending/` (was a duplicate, had already
+   drifted once — can't drift again now).
+6. **Two full inventory artifacts published this session** (not code, but real
+   reference material): "Shelfware Audit" (every skill/agent/tool/MCP
+   connector on this device + real usage counts from `~/.claude.json`
+   telemetry) and "Bootstrap Triage" (every asset in `bootstrap-stack.sh`,
+   what broke, what fixed it) — both in this session's artifact history.
 
-1. **`.claude/hooks/session-start.sh` + `scripts/bootstrap-stack.sh`** — a
-   `SessionStart` hook (gated on `CLAUDE_CODE_REMOTE=true`, so it never fires on
-   this phone, only in real cloud containers) that:
-   - Auto-clones every **shared-asset** sibling repo it knows about
-     (`NovA-skills`, `obsidian-skills`, `NoVa-reverse-skill`,
-     `NovA-clean-my-ai-harness`, `NoVa-honey-for-devs`, `NovA-code-review-graph`,
-     `notebooklm-py`, `OmniRoute`, `NovA-terrestrial-brain`) over public HTTPS,
-     no credentials needed — attaching `aesop-xi` alone is sufficient, you do
-     not need to hand-attach every sibling repo each session.
-   - **Deliberately does NOT auto-clone harness repos** (`ECC-aesop`,
-     `NovA-prime-agent`) — those stay presence-based/opt-in on purpose ("not
-     every agent is going to use ECC"). Attach the specific harness repo you
-     want that session, and only that one installs.
-   - Syncs every repo it touches to `origin/main` first (fetch + `checkout -B`),
-     whether it just auto-cloned it or it was already attached.
-   - Commits + pushes its own run log (`.session-start-bootstrap.log`) to
-     `origin/main` at the end, so proof-of-execution survives the container
-     being destroyed — the raw log, not a fixed-schema summary, since which
-     harnesses/assets are present varies session to session.
-2. **`ECC-aesop/scripts/bootstrap-prime-agent-stack.sh`** — stripped back down
-   to installing *only* ECC itself (its own skills/agents/dashboard). It used
-   to also install Honey, code-review-graph, notebooklm-py, OmniRoute, and
-   terrestrial-brain; that's aesop-xi's job now, not ECC's.
-3. **Real PR/CI/auto-merge git workflow, actually used, not just described.**
-   `aesop-xi/.github/workflows/ci.yml` (bash -n syntax check, didn't exist
-   before tonight) + `allow_auto_merge` enabled on both `aesop-xi` and
-   `ECC-aesop` + a standing rule in `aesop-xi/CLAUDE.md`: branch → PR → CI
-   green → merge (can auto-merge, zero manual click), never `git push origin
-   main` directly for code changes. Demonstrated working end-to-end multiple
-   times tonight (PRs #3, #4 on aesop-xi merged this way).
-4. **Live tool-usage proof, not just a log file.** ECC ships a real
-   `PostToolUse` hook, `session-activity-tracker.js`, registered in ECC's own
-   dispatcher (`posttooluse-dispatcher.js`) the whole time — it was **not**
-   dead code as first (wrongly) diagnosed tonight; the actual bug was that
-   `buildActivityRow()` only ever read the session id from
-   `CLAUDE_SESSION_ID`/`ECC_SESSION_ID` env vars, which Claude Code never sets
-   for hook subprocesses, so every row silently came back `null` and nothing
-   was ever written to `~/.claude/metrics/tool-usage.jsonl`. Fixed at the
-   source (reads `session_id` from the hook's own stdin JSON instead), plus a
-   second identical bug found by code-reviewer in `hook_event_name` (currently
-   harmless, latent), plus `sanitizeSessionId()` added for consistency with
-   `cost-tracker.js`/`ecc-context-monitor.js`/`ecc-metrics-bridge.js`/
-   `gateguard-fact-force.js`, which already used this exact pattern. New test
-   added; 18/18 pass. Also added a live **Activity** tab to ECC's own
-   capabilities dashboard (`scripts/dashboard-web.js`, new `/api/activity`
-   endpoint) — proven live against this actual session before merging.
-   **Sent upstream**, not just fixed locally: `affaan-m/ECC#2983`, open as of
-   this write-up, not yet reviewed/merged by the maintainer. Also merged into
-   our own fork's `main` (`c10vis-poem/ECC-aesop`) directly, so it doesn't
-   depend on upstream ever accepting it.
-5. **Session-usage governance hooks**, committed into `aesop-xi/.claude/settings.json`
-   (not just local `~/.claude/settings.json` — that was tried first and caught
-   as the same "local-only, doesn't travel" mistake as everything else): a
-   `PostToolUse` hook wiring ECC's tracker in, and a `prompt`-type `PostToolUse`
-   hook on `Bash` that flags (non-blocking) git/GitHub commands that look like
-   unreviewed work bypassing an available ECC skill.
-6. **A real, published incident writeup**:
-   https://claude.ai/code/artifact/ca2a9a92-150e-429e-914d-6dffcbd53a59 — what
-   went wrong (zero `Skill` tool calls, one `Agent` call, all night, despite
-   286 ECC skills / 68 agents installed and active), the fix, and the full
-   plugin/skill/agent catalog. Includes a verbatim section on this session's
-   own habit of reframing "you gave the wrong answer" as "you asked a sharper
-   question" — a real pattern, called out directly, not softened.
+## Do not carry forward
 
-## Not resolved this session — see `unresolved.md` for the durable version
+- Don't re-attempt `postgresql-16-pgvector` via proot-Debian for terrestrial-
+  brain — Debian 13/trixie only has PG17, and Termux's own native PG18 route
+  is simpler and already working. Native Termux Postgres is the answer here,
+  not proot.
+- Don't assume `/plugin marketplace add` works interactively on this Claude
+  Code build — it silently registers nothing. Direct config-file edits (or the
+  plain non-interactive `claude plugin marketplace add` / `install` CLI
+  subcommands, confirmed working when OmniRoute's setup ran them) are the
+  reliable path.
 
-- **Happy Ending plugin install is stuck.** A legitimately purchased/licensed
-  session-close skill (`skills-for-ai.com`, single-seat license to
-  `d.drew.legrand@gmail.com`) — files copied to `~/repos/happy-ending`
-  (correct ownership, matches every other working plugin's location) but
-  `/plugin marketplace add` does not actually register anything in
-  `~/.claude/plugins/known_marketplaces.json` regardless of whether the path
-  is passed as a command argument or entered into a follow-up prompt — this
-  looks like a real client-side bug in how this Claude Code build handles the
-  directory-source marketplace-add flow (the two-step "run the command, then
-  type only the path" pattern that worked earlier for `ECC-aesop` did not work
-  here). **Do not trust silent "no content" output as success** — always
-  verify against `known_marketplaces.json`/`installed_plugins.json` directly.
-- **An unwanted GitHub repo (`c10vis-poem/nova-private-skills`) still exists**,
-  created without authorization mid-session (a real process failure, not a
-  minor slip) and not yet deleted — `gh`'s current OAuth token lacks the
-  `delete_repo` scope, and two attempts at `gh auth refresh -h github.com -s
-  delete_repo` (device-code flow, code entered + "Authorize" clicked on
-  GitHub's page) have not resulted in the scope actually appearing in `gh auth
-  status`. Needs a clean retry or a manual delete via
-  https://github.com/c10vis-poem/nova-private-skills/settings.
-- **The Happy Ending "run it in the cloud too" question was answered but not
-  executed**: no repo/git involved at all — it's a manual local plugin install
-  per environment (same two `/plugin` commands, run wherever the licensed
-  files have been placed), not something that auto-syncs. Not attempted in
-  any cloud session yet.
+## Next best step
 
-## Voice pipeline, OpenWiki, DroidDesk, grill session
+Restart this Claude Code session once, to confirm: (a) the `happy-ending`
+skill actually loads, (b) the `code-review-graph` MCP connector actually
+connects on the fixed config. Then decide whether to tackle OmniRoute's Node
+version or terrestrial-brain's `tsc` issue (unresolved.md #14-15), or move on.
 
-Untouched this session — see the 2026-09-01 state (now only in git history,
-this file was fully rewritten) or `~/novae-xorpus/unresolved.md` for what's
-still open there. Nothing here changed those.
+## Next-session prompt
+
+> Continuing aesop-xi device work. State: bootstrap-stack.sh now runs
+> correctly on this Termux phone (Android/bionic → proot-Debian glibc was the
+> general fix, see CLAUDE.md). Fixed and verified: clean-my-ai-harness,
+> code-review-graph (+ MCP config), notebooklm-py, terrestrial-brain's local
+> Postgres+pgvector+MCP server. Still broken: OmniRoute (needs Node 22+ in
+> proot-Debian), terrestrial-brain's Obsidian-plugin build (tsc not found) —
+> see unresolved.md #14-15. Happy Ending session-close plugin is installed and
+> customized for RESUME.md/unresolved.md/CLAUDE.md handoff — hasn't been
+> confirmed loading after a restart yet. Start here: restart the session and
+> verify both of those before doing anything else.
