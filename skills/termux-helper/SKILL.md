@@ -28,6 +28,35 @@ description: "Termux on-device AI stack for Snapdragon 8 Elite. Use when working
 - Shared storage: `~/storage/shared/` → `/storage/emulated/0/`
 - Downloads: `~/storage/downloads/` — where sideloaded GGUFs usually land.
 
+### 1.4 When something needs glibc, not bionic (proot-Debian)
+
+Termux is Android/bionic. A lot of upstream packages (Playwright, `libsql`,
+prebuilt tree-sitter language wheels, and often a project's own native
+Postgres extensions) only ship glibc Linux builds and fail with a `dlopen`
+symbol error or "no wheel for this platform" — not a Termux bug, a real
+platform gap. `proot-distro login debian` (installed via `pkg install
+proot-distro && proot-distro install debian`) gives a genuine glibc aarch64
+userland already on this device; install/build the glibc-only piece there
+instead of fighting it in bare Termux. Two gotchas:
+
+- **`proot-distro login` runs with `--kill-on-exit`.** A `nohup`/`disown`
+  *inside* the login shell does not survive — the whole process tree dies the
+  instant the invoking command returns. For a persistent background process,
+  background the *outer* `proot-distro login debian -- ...` command itself.
+- **Termux's own home is visible inside proot at the same absolute path**
+  (`/data/data/com.termux/files/home/...`), but `~` inside proot resolves to
+  `/root`, not that path — always use the full path, never `~`, when
+  referencing a Termux-side file from inside a proot shell.
+
+Prefer Termux's own native build over proot when one already exists and is
+better — e.g. Termux ships Postgres natively (`pkg install postgresql`,
+already has `initdb`/`pg_ctl`/`pg_config`+a build toolchain); building
+`pgvector` from source against it is faster than running a second Postgres
+inside proot, but needs `MKDIR_P`/`INSTALL` overridden to Termux's real paths
+(its own `pg_config` bakes in nonexistent `/usr/bin/mkdir` / `/usr/bin/install`)
+and `SHLIB_LINK="-lm"` added explicitly (bionic doesn't fold libm into libc
+the way glibc does).
+
 ## Part 2: What Termux Can and Cannot Reach
 
 **This is the section that matters. Get it wrong and you waste a night.**

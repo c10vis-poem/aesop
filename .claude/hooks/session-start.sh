@@ -1,15 +1,15 @@
 #!/bin/bash
-# Auto-bootstrap aesop-xi's own orchestration stack on every fresh cloud
-# session opened here. aesop-xi owns this logic directly (scripts/
+# Auto-bootstrap aesop-xi's own orchestration stack on every fresh session
+# opened here, cloud or local. aesop-xi owns this logic directly (scripts/
 # bootstrap-stack.sh) — it does not reach into any harness's own bootstrap
 # script. Which agent harness(es) get installed is decided purely by which
 # harness repo(s) (ECC-aesop, NovA-prime-agent) are attached as siblings this
 # session — no separate variable to set.
+#
+# Previously gated on CLAUDE_CODE_REMOTE=true (cloud-only). Dropped 2026-09-06
+# at the operator's explicit direction: local/Termux sessions should get the
+# identical bootstrap, not a lesser one, just because they're on the phone.
 set -uo pipefail
-
-if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
-  exit 0
-fi
 
 echo '{"async": true, "asyncTimeout": 590000}'
 
