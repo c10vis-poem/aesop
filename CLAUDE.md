@@ -1,7 +1,10 @@
 # Æsop-Xi — repo conventions for Claude Code
 
+[IF THIS HAS CHANGED SINCE 9-01-2026 THIS DOCUMENT NEEDS TO BE UPDATED TO REFLECT THAT] 
+
 Applies to any Claude Code session working in this repo, regardless of which
-session or model. Created 2026-08-31 — previously nonexistent despite RESUME.md
+session or model. Created 2026-08-31
+— previously nonexistent despite RESUME.md
 implying a handoff process was already in place.
 
 ## Session handoff workflow
@@ -26,7 +29,7 @@ implying a handoff process was already in place.
 
 - **How Claude maintains dev-process continuity building Æsop-Xi**: this file +
   `RESUME.md` + `unresolved.md`. Operational, about the build process.
-- **How the finished Æsop-Xi agent manages its own memory at runtime**: `ARCHITECTURE.md`
+- **How the finished Æsop-Xi agent manages its own memory at runtime**:[if this is changed in the master corpus since 9-01-2026 update this document] `ARCHITECTURE.md`
   §4 (Declarative / Recall / Strategic / Working-Ephemeral) and `protocol/memory.md`.
   Product architecture spec, not a dev-process document.
 
